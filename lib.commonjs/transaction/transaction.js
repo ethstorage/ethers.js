@@ -203,6 +203,27 @@ function _serializeEip1559(tx, sig) {
     }
     return (0, index_js_3.concat)(["0x02", (0, index_js_3.encodeRlp)(fields)]);
 }
+function _serializeEip4844(tx, sig) {
+    const fields = [
+        formatNumber(tx.chainId || 0, "chainId"),
+        formatNumber(tx.nonce || 0, "nonce"),
+        formatNumber(tx.maxPriorityFeePerGas || 0, "maxPriorityFeePerGas"),
+        formatNumber(tx.maxFeePerGas || 0, "maxFeePerGas"),
+        formatNumber(tx.gasLimit || 0, "gasLimit"),
+        ((tx.to != null) ? (0, index_js_1.getAddress)(tx.to) : "0x"),
+        formatNumber(tx.value || 0, "value"),
+        (tx.data || "0x"),
+        (formatAccessList(tx.accessList || [])),
+        // formatNumber(tx.maxFeePerBlobGas || 0, "maxFeePerBlobGas"),
+        // (this.versionedHashes || [])
+    ];
+    if (sig) {
+        fields.push(formatNumber(sig.yParity, "yParity"));
+        fields.push((0, index_js_3.toBeArray)(sig.r));
+        fields.push((0, index_js_3.toBeArray)(sig.s));
+    }
+    return (0, index_js_3.concat)(["0x03", (0, index_js_3.encodeRlp)(fields)]);
+}
 function _parseEip2930(data) {
     const fields = (0, index_js_3.decodeRlp)((0, index_js_3.getBytes)(data).slice(1));
     (0, index_js_3.assertArgument)(Array.isArray(fields) && (fields.length === 8 || fields.length === 11), "invalid field count for transaction type: 1", "data", (0, index_js_3.hexlify)(data));
@@ -517,6 +538,8 @@ class Transaction {
                 return _serializeEip2930(this);
             case 2:
                 return _serializeEip1559(this);
+            case 3:
+                return _serializeEip4844(this);
         }
         (0, index_js_3.assert)(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: ".unsignedSerialized" });
     }
@@ -693,6 +716,12 @@ class Transaction {
         if (tx.accessList != null) {
             result.accessList = tx.accessList;
         }
+        //
+        // if (tx.accessList != null) { result.accessList = tx.accessList; }
+        // if (tx.blobs != null) { result.blobs = tx.blobs; }
+        // if (tx.accessList != null) { result.accessList = tx.accessList; }
+        // if (tx.accessList != null) { result.accessList = tx.accessList; }
+        // if (tx.accessList != null) { result.accessList = tx.accessList; }
         if (tx.hash != null) {
             (0, index_js_3.assertArgument)(result.isSigned(), "unsigned transaction cannot define hash", "tx", tx);
             (0, index_js_3.assertArgument)(result.hash === tx.hash, "hash mismatch", "tx", tx);

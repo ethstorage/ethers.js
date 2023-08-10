@@ -85,7 +85,10 @@ export class AbstractSigner {
         else if ((pop.type === 0 || pop.type === 1) && hasEip1559) {
             assertArgument(false, "pre-eip-1559 transaction do not support maxFeePerGas/maxPriorityFeePerGas", "tx", tx);
         }
-        if ((pop.type === 2 || pop.type == null) && (pop.maxFeePerGas != null && pop.maxPriorityFeePerGas != null)) {
+        if (pop.type === 3) {
+            // Blob4844
+        }
+        else if ((pop.type === 2 || pop.type == null) && (pop.maxFeePerGas != null && pop.maxPriorityFeePerGas != null)) {
             // Fully-formed EIP-1559 transaction (skip getFeeData)
             pop.type = 2;
         }

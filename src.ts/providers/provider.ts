@@ -1,14 +1,14 @@
 //import { resolveAddress } from "@ethersproject/address";
 import {
     defineProperties, getBigInt, getNumber, hexlify, resolveProperties,
-    assert, assertArgument, isError, makeError
+    assert, assertArgument, isError, makeError, isHexString
 } from "../utils/index.js";
 import { accessListify } from "../transaction/index.js";
 
 import type { AddressLike, NameResolver } from "../address/index.js";
 import type { BigNumberish, EventEmitterable } from "../utils/index.js";
 import type { Signature } from "../crypto/index.js";
-import type { AccessList, AccessListish, TransactionLike } from "../transaction/index.js";
+import type { AccessList, AccessListish, BlobList, BlobListish, TransactionLike } from "../transaction/index.js";
 
 import type { ContractRunner } from "./contracts.js";
 import type { Network } from "./network.js";
@@ -216,6 +216,9 @@ export interface TransactionRequest {
 
     // Todo?
     //gasMultiplier?: number;
+
+    maxFeePerBlobGas?: null | BigNumberish;
+    blobs?: null | BlobListish;
 };
 
 /**
@@ -332,7 +335,7 @@ export function copyRequest(req: TransactionRequest): PreparedTransactionRequest
 
     if (req.data) { result.data = hexlify(req.data); }
 
-    const bigIntKeys = "chainId,gasLimit,gasPrice,maxFeePerGas,maxPriorityFeePerGas,value".split(/,/);
+    const bigIntKeys = "chainId,gasLimit,gasPrice,maxFeePerGas,maxPriorityFeePerGas,maxFeePerBlobGas,value".split(/,/);
     for (const key of bigIntKeys) {
         if (!(key in req) || (<any>req)[key] == null) { continue; }
         result[key] = getBigInt((<any>req)[key], `request.${ key }`);
@@ -348,6 +351,10 @@ export function copyRequest(req: TransactionRequest): PreparedTransactionRequest
         result.accessList = accessListify(req.accessList);
     }
 
+    if (req.blobs) {
+        result.blobs = blobListify(req.blobs);
+    }
+
     if ("blockTag" in req) { result.blockTag = req.blockTag; }
 
     if ("enableCcipRead" in req) {
@@ -361,6 +368,20 @@ export function copyRequest(req: TransactionRequest): PreparedTransactionRequest
     return result;
 }
 
+export function blobListify(value: BlobListish): BlobList {
+    if (Array.isArray(value)) {
+        assertArgument(value.length <= 2, "invalid blob list", `value`, value);
+        value.map((v, index) => {
+            assertArgument(typeof (v) === "string" && isHexString(v), "invalid blob", `value[${ index }]`, v);
+            assertArgument(v.length <= 262144, "invalid blob length", `value[${ index }]`, v);
+        });
+        return value;
+    }
+
+    assertArgument(value != null && typeof (value) === "string" && isHexString(value), "invalid blob", "value", value);
+    assertArgument(value != null && value.length <= 262144, "invalid blob length", `value`, value);
+    return [value];
+}
 //////////////////////
 // Block
 

@@ -18,6 +18,8 @@ export type AccessList = Array<AccessListEntry>;
  *  Any ethers-supported access list structure.
  */
 export type AccessListish = AccessList | Array<[string, Array<string>]> | Record<string, Array<string>>;
+export type BlobList = Array<string>;
+export type BlobListish = BlobList | string[] | string;
 export { accessListify } from "./accesslist.js";
 export { computeAddress, recoverAddress } from "./address.js";
 export { Transaction } from "./transaction.js";

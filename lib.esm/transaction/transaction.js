@@ -200,6 +200,27 @@ function _serializeEip1559(tx, sig) {
     }
     return concat(["0x02", encodeRlp(fields)]);
 }
+function _serializeEip4844(tx, sig) {
+    const fields = [
+        formatNumber(tx.chainId || 0, "chainId"),
+        formatNumber(tx.nonce || 0, "nonce"),
+        formatNumber(tx.maxPriorityFeePerGas || 0, "maxPriorityFeePerGas"),
+        formatNumber(tx.maxFeePerGas || 0, "maxFeePerGas"),
+        formatNumber(tx.gasLimit || 0, "gasLimit"),
+        ((tx.to != null) ? getAddress(tx.to) : "0x"),
+        formatNumber(tx.value || 0, "value"),
+        (tx.data || "0x"),
+        (formatAccessList(tx.accessList || [])),
+        // formatNumber(tx.maxFeePerBlobGas || 0, "maxFeePerBlobGas"),
+        // (this.versionedHashes || [])
+    ];
+    if (sig) {
+        fields.push(formatNumber(sig.yParity, "yParity"));
+        fields.push(toBeArray(sig.r));
+        fields.push(toBeArray(sig.s));
+    }
+    return concat(["0x03", encodeRlp(fields)]);
+}
 function _parseEip2930(data) {
     const fields = decodeRlp(getBytes(data).slice(1));
     assertArgument(Array.isArray(fields) && (fields.length === 8 || fields.length === 11), "invalid field count for transaction type: 1", "data", hexlify(data));
@@ -514,6 +535,8 @@ export class Transaction {
                 return _serializeEip2930(this);
             case 2:
                 return _serializeEip1559(this);
+            case 3:
+                return _serializeEip4844(this);
         }
         assert(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: ".unsignedSerialized" });
     }
@@ -690,6 +713,12 @@ export class Transaction {
         if (tx.accessList != null) {
             result.accessList = tx.accessList;
         }
+        //
+        // if (tx.accessList != null) { result.accessList = tx.accessList; }
+        // if (tx.blobs != null) { result.blobs = tx.blobs; }
+        // if (tx.accessList != null) { result.accessList = tx.accessList; }
+        // if (tx.accessList != null) { result.accessList = tx.accessList; }
+        // if (tx.accessList != null) { result.accessList = tx.accessList; }
         if (tx.hash != null) {
             assertArgument(result.isSigned(), "unsigned transaction cannot define hash", "tx", tx);
             assertArgument(result.hash === tx.hash, "hash mismatch", "tx", tx);
