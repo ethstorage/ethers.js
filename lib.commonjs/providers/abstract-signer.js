@@ -12,6 +12,9 @@ const index_js_1 = require("../address/index.js");
 const index_js_2 = require("../transaction/index.js");
 const index_js_3 = require("../utils/index.js");
 const provider_js_1 = require("./provider.js");
+const c_kzg_1 = require("c-kzg");
+const path_1 = require("path");
+const crypto_1 = require("../crypto");
 function checkProvider(signer, operation) {
     if (signer.provider) {
         return signer.provider;
@@ -38,6 +41,13 @@ async function populate(signer, tx) {
     }
     return await (0, index_js_3.resolveProperties)(pop);
 }
+function computeVersionedHash(commitment, blobCommitmentVersion) {
+    const computedVersionedHash = new Uint8Array(32);
+    computedVersionedHash.set([blobCommitmentVersion], 0);
+    const hash = (0, index_js_3.getBytes)((0, crypto_1.sha256)(commitment));
+    computedVersionedHash.set(hash.subarray(1), 1);
+    return computedVersionedHash;
+}
 /**
  *  An **AbstractSigner** includes most of teh functionality required
  *  to get a [[Signer]] working as expected, but requires a few
@@ -54,6 +64,9 @@ class AbstractSigner {
      */
     constructor(provider) {
         (0, index_js_3.defineProperties)(this, { provider: (provider || null) });
+        const SETUP_FILE_PATH = (0, path_1.resolve)(__dirname, 'lib', 'devnet7.txt');
+        console.log(SETUP_FILE_PATH, (0, path_1.resolve)(__dirname));
+        (0, c_kzg_1.loadTrustedSetup)(SETUP_FILE_PATH);
     }
     async getNonce(blockTag) {
         return checkProvider(this, "getTransactionCount").getTransactionCount(await this.getAddress(), blockTag);
@@ -81,15 +94,50 @@ class AbstractSigner {
             pop.chainId = network.chainId;
         }
         // Do not allow mixing pre-eip-1559 and eip-1559 properties
+        const hasEip4844 = (pop.maxFeePerBlobGas != null || pop.blobs != null);
         const hasEip1559 = (pop.maxFeePerGas != null || pop.maxPriorityFeePerGas != null);
-        if (pop.gasPrice != null && (pop.type === 2 || hasEip1559)) {
+        if (pop.gasPrice != null && (pop.type === 3 || hasEip4844)) {
+            (0, index_js_3.assertArgument)(false, "eip-4844 transaction do not support gasPrice", "tx", tx);
+        }
+        else if (pop.gasPrice != null && (pop.type === 2 || hasEip1559)) {
             (0, index_js_3.assertArgument)(false, "eip-1559 transaction do not support gasPrice", "tx", tx);
         }
         else if ((pop.type === 0 || pop.type === 1) && hasEip1559) {
             (0, index_js_3.assertArgument)(false, "pre-eip-1559 transaction do not support maxFeePerGas/maxPriorityFeePerGas", "tx", tx);
         }
-        if (pop.type === 3) {
+        if (pop.blobs != null) {
             // Blob4844
+            pop.type = 3;
+            // We need to get fee data to determine things
+            const feeData = await provider.getFeeData();
+            if (pop.maxFeePerGas == null) {
+                pop.maxFeePerGas = feeData.maxFeePerGas;
+            }
+            if (pop.maxPriorityFeePerGas == null) {
+                pop.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
+            }
+            (0, index_js_3.assert)((pop.maxFeePerGas != null && pop.maxPriorityFeePerGas != null), "network does not support EIP-1559", "UNSUPPORTED_OPERATION", {
+                operation: "populateTransaction"
+            });
+            if (pop.maxFeePerBlobGas == null) {
+                // TODO
+                pop.maxFeePerBlobGas = 100000000n;
+            }
+            const commitments = [];
+            const versionedHashes = [];
+            const proofs = [];
+            for (let i = 0; i < pop.blobs.length; i++) {
+                const blob = (0, index_js_3.getBytes)(pop.blobs[i]);
+                const commitment = (0, c_kzg_1.blobToKzgCommitment)(blob);
+                commitments.push((0, index_js_3.hexlify)(commitment));
+                const commitmentHash = computeVersionedHash(commitment, 0x01);
+                versionedHashes.push((0, index_js_3.hexlify)(commitmentHash));
+                const proof = (0, c_kzg_1.computeBlobKzgProof)(blob, commitment);
+                proofs.push((0, index_js_3.hexlify)(proof));
+            }
+            pop.kzgCommitments = commitments;
+            pop.kzgProofs = proofs;
+            pop.versionedHashes = versionedHashes;
         }
         else if ((pop.type === 2 || pop.type == null) && (pop.maxFeePerGas != null && pop.maxPriorityFeePerGas != null)) {
             // Fully-formed EIP-1559 transaction (skip getFeeData)
@@ -185,6 +233,7 @@ class AbstractSigner {
         const pop = await this.populateTransaction(tx);
         delete pop.from;
         const txObj = index_js_2.Transaction.from(pop);
+        console.log('sign', await this.signTransaction(txObj));
         return await provider.broadcastTransaction(await this.signTransaction(txObj));
     }
 }

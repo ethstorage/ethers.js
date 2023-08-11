@@ -1,6 +1,6 @@
 //import { resolveAddress } from "@ethersproject/address";
-import { defineProperties, getBigInt, getNumber, hexlify, resolveProperties, assert, assertArgument, isError, makeError, isHexString } from "../utils/index.js";
-import { accessListify } from "../transaction/index.js";
+import { defineProperties, getBigInt, getNumber, hexlify, resolveProperties, assert, assertArgument, isError, makeError } from "../utils/index.js";
+import { accessListify, blobListify } from "../transaction/index.js";
 const BN_0 = BigInt(0);
 // -----------------------
 function getValue(value) {
@@ -119,19 +119,6 @@ export function copyRequest(req) {
         result.customData = req.customData;
     }
     return result;
-}
-export function blobListify(value) {
-    if (Array.isArray(value)) {
-        assertArgument(value.length <= 2, "invalid blob list", `value`, value);
-        value.map((v, index) => {
-            assertArgument(typeof (v) === "string" && isHexString(v), "invalid blob", `value[${index}]`, v);
-            assertArgument(v.length <= 262144, "invalid blob length", `value[${index}]`, v);
-        });
-        return value;
-    }
-    assertArgument(value != null && typeof (value) === "string" && isHexString(value), "invalid blob", "value", value);
-    assertArgument(value != null && value.length <= 262144, "invalid blob length", `value`, value);
-    return [value];
 }
 /**
  *  A **Block** represents the data associated with a full block on

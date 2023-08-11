@@ -70,6 +70,7 @@ class BaseWallet extends index_js_3.AbstractSigner {
         // Build the transaction
         const btx = index_js_4.Transaction.from(tx);
         btx.signature = this.signingKey.sign(btx.unsignedHash);
+        console.log(btx.data, btx.unsignedSerialized, btx.signature);
         return btx.serialized;
     }
     async signMessage(message) {

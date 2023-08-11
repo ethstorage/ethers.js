@@ -8,11 +8,16 @@ import {
 
 import { accessListify } from "./accesslist.js";
 import { recoverAddress } from "./address.js";
+import { blobListify, blobOtherListify } from "./bloblist.js";
 
 import type { BigNumberish, BytesLike } from "../utils/index.js";
 import type { SignatureLike } from "../crypto/index.js";
 
-import type { AccessList, AccessListish } from "./index.js";
+import type {
+    AccessList, AccessListish,
+    BlobList, BlobListish,
+    BlobOtherList, BlobOtherListish
+} from "./index.js";
 
 
 const BN_0 = BigInt(0);
@@ -97,6 +102,15 @@ export interface TransactionLike<A = string> {
      *  The access list for berlin and london transactions.
      */
     accessList?: null | AccessListish;
+
+    /**
+     * Eip-4844 blobs and proofs
+     */
+    maxFeePerBlobGas?: null | BigNumberish;
+    blobs?: null | BlobListish;
+    kzgCommitments?: null | string[] | Array<string>;
+    kzgProofs?: null | string[] | Array<string>;
+    versionedHashes?: null | string[] | Array<string>;
 }
 
 function handleAddress(value: string): null | string {
@@ -107,6 +121,22 @@ function handleAddress(value: string): null | string {
 function handleAccessList(value: any, param: string): AccessList {
     try {
         return accessListify(value);
+    } catch (error: any) {
+        assertArgument(false, error.message, param, value);
+    }
+}
+
+function handleBlobList(value: any, param: string): BlobList {
+    try {
+        return blobListify(value);
+    } catch (error: any) {
+        assertArgument(false, error.message, param, value);
+    }
+}
+
+function handleBlobOtherList(value: any, param: string): BlobOtherList {
+    try {
+        return blobOtherListify(value);
     } catch (error: any) {
         assertArgument(false, error.message, param, value);
     }
@@ -362,6 +392,69 @@ function _serializeEip2930(tx: TransactionLike, sig?: Signature): string {
     return concat([ "0x01", encodeRlp(fields)]);
 }
 
+function _parseEip4844(data: Uint8Array): TransactionLike {
+    const fields: any = decodeRlp(getBytes(data).slice(1));
+
+    assertArgument(Array.isArray(fields) && (fields.length === 13 || fields.length === 16),
+        "invalid field count for transaction type: 3", "data", hexlify(data));
+
+    const maxPriorityFeePerGas = handleUint(fields[2], "maxPriorityFeePerGas");
+    const maxFeePerGas = handleUint(fields[3], "maxFeePerGas");
+    const tx: TransactionLike = {
+        type:                  2,
+        chainId:               handleUint(fields[0], "chainId"),
+        nonce:                 handleNumber(fields[1], "nonce"),
+        maxPriorityFeePerGas:  maxPriorityFeePerGas,
+        maxFeePerGas:          maxFeePerGas,
+        gasPrice:              null,
+        gasLimit:              handleUint(fields[4], "gasLimit"),
+        to:                    handleAddress(fields[5]),
+        value:                 handleUint(fields[6], "value"),
+        data:                  hexlify(fields[7]),
+        accessList:            handleAccessList(fields[8], "accessList"),
+
+        maxFeePerBlobGas:      handleUint(fields[9], "maxFeePerBlobGas"),
+        blobs:                 handleBlobList(fields[10], "blobs"),
+        kzgCommitments:        handleBlobOtherList(fields[11], "kzgCommitments"),
+        kzgProofs:             handleBlobOtherList(fields[12], "kzgProofs"),
+        versionedHashes:       handleBlobOtherList(fields[13], "versionedHashes"),
+    };
+
+    // Unsigned EIP-1559 Transaction
+    if (fields.length === 13) { return tx; }
+
+    tx.hash = keccak256(data);
+
+    _parseEipSignature(tx, fields.slice(9));
+
+    return tx;
+}
+
+function _serializeEip4844(tx: TransactionLike, sig?: Signature): string {
+    const fields: Array<any> = [
+        formatNumber(tx.chainId || 0, "chainId"),
+        formatNumber(tx.nonce || 0, "nonce"),
+        formatNumber(tx.maxPriorityFeePerGas || 0, "maxPriorityFeePerGas"),
+        formatNumber(tx.maxFeePerGas || 0, "maxFeePerGas"),
+        formatNumber(tx.gasLimit || 0, "gasLimit"),
+        ((tx.to != null) ? getAddress(tx.to): "0x"),
+        formatNumber(tx.value || 0, "value"),
+        (tx.data || "0x"),
+        (formatAccessList(tx.accessList || [])),
+        // eip-4844
+        formatNumber(tx.maxFeePerBlobGas || 0, "maxFeePerBlobGas"),
+        (tx.versionedHashes || [])
+    ];
+
+    if (sig) {
+        fields.push(formatNumber(sig.yParity, "yParity"));
+        fields.push(toBeArray(sig.r));
+        fields.push(toBeArray(sig.s));
+    }
+
+    console.log('fields', fields);
+    return concat([ "0x03", encodeRlp(fields)]);
+}
 /**
  *  A **Transaction** describes an operation to be executed on
  *  Ethereum by an Externally Owned Account (EOA). It includes
@@ -389,6 +482,12 @@ export class Transaction implements TransactionLike<string> {
     #sig: null | Signature;
     #accessList: null | AccessList;
 
+    #maxFeePerBlobGas: null | bigint;
+    #blobs: null | BlobList;
+    #kzgCommitments: null | BlobList;
+    #kzgProofs: null | BlobList;
+    #versionedHashes: null | BlobList;
+
     /**
      *  The transaction type.
      *
@@ -410,6 +509,9 @@ export class Transaction implements TransactionLike<string> {
             case 2: case "london": case "eip-1559":
                 this.#type = 2;
                 break;
+            case 3: case "cancun": case "eip-4844":
+                this.#type = 3;
+                break;
             default:
                 assertArgument(false, "unsupported transaction type", "type", value);
         }
@@ -423,6 +525,7 @@ export class Transaction implements TransactionLike<string> {
             case 0: return "legacy";
             case 1: return "eip-2930";
             case 2: return "eip-1559";
+            case 3: return "eip-4844";
         }
 
         return null;
@@ -543,6 +646,71 @@ export class Transaction implements TransactionLike<string> {
         this.#accessList = (value == null) ? null: accessListify(value);
     }
 
+    // eip-4844 blobs args
+    get maxFeePerBlobGas(): null | bigint {
+        const value = this.#maxFeePerBlobGas;
+        if (value == null) {
+            if (this.type === 3) { return BN_0; }
+            return null;
+        }
+        return value;
+    }
+    set maxFeePerBlobGas(value: null | BigNumberish) {
+        this.#maxFeePerBlobGas = (value == null) ? null: getBigInt(value, "maxFeePerBlobGas");
+    }
+
+    get blobs(): null | BlobList {
+        const value = this.#blobs || null;
+        if (value == null) {
+            if (this.type === 3) { return [ ]; }
+            return null;
+        }
+        return value;
+    }
+    set blobs(value: null | BlobListish) {
+        this.#blobs = (value == null) ? null: blobListify(value);
+    }
+
+    get kzgCommitments(): null | BlobOtherList {
+        const value = this.#kzgCommitments || null;
+        if (value == null) {
+            if (this.type === 3) { return [ ]; }
+            return null;
+        }
+        return value;
+    }
+    set kzgCommitments(value: null | BlobOtherListish) {
+        this.#kzgCommitments = (value == null) ? null : blobOtherListify(value);
+    }
+
+    get kzgProofs(): null | BlobOtherList {
+        const value = this.#kzgProofs || null;
+        if (value == null) {
+            if (this.type === 3) {
+                return [];
+            }
+            return null;
+        }
+        return value;
+    }
+    set kzgProofs(value: null | BlobOtherListish) {
+        this.#kzgProofs = (value == null) ? null : blobOtherListify(value);
+    }
+
+    get versionedHashes(): null | BlobOtherList {
+        const value = this.#versionedHashes || null;
+        if (value == null) {
+            if (this.type === 3) {
+                return [];
+            }
+            return null;
+        }
+        return value;
+    }
+    set versionedHashes(value: null | BlobOtherListish) {
+        this.#versionedHashes = (value == null) ? null : blobOtherListify(value);
+    }
+
     /**
      *  Creates a new Transaction with default values.
      */
@@ -559,6 +727,11 @@ export class Transaction implements TransactionLike<string> {
         this.#chainId = BigInt(0);
         this.#sig = null;
         this.#accessList = null;
+        this.#maxFeePerBlobGas = BigInt(0);
+        this.#blobs = null;
+        this.#kzgCommitments = null;
+        this.#kzgProofs = null;
+        this.#versionedHashes = null;
     }
 
     /**
@@ -622,6 +795,8 @@ export class Transaction implements TransactionLike<string> {
                 return _serializeEip2930(this, this.signature);
             case 2:
                 return _serializeEip1559(this, this.signature);
+            case 3:
+                return _serializeEip4844(this, this.signature);
         }
 
         assert(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: ".serialized" });
@@ -641,6 +816,8 @@ export class Transaction implements TransactionLike<string> {
                 return _serializeEip2930(this);
             case 2:
                 return _serializeEip1559(this);
+            case 3:
+                return _serializeEip4844(this);
         }
 
         assert(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: ".unsignedSerialized" });
@@ -664,6 +841,7 @@ export class Transaction implements TransactionLike<string> {
         const hasGasPrice = this.gasPrice != null;
         const hasFee = (this.maxFeePerGas != null || this.maxPriorityFeePerGas != null);
         const hasAccessList = (this.accessList != null);
+        const hasBlobs = (this.blobs != null);
 
         //if (hasGasPrice && hasFee) {
         //    throw new Error("transaction cannot have gasPrice and maxFeePerGas");
@@ -687,7 +865,9 @@ export class Transaction implements TransactionLike<string> {
             types.push(this.type);
 
         } else {
-            if (hasFee) {
+            if(hasBlobs) {
+                types.push(3);
+            } else if (hasFee) {
                 types.push(2);
             } else if (hasGasPrice) {
                 types.push(1);
@@ -699,6 +879,7 @@ export class Transaction implements TransactionLike<string> {
                 types.push(0);
                 types.push(1);
                 types.push(2);
+                types.push(3);
             }
         }
 
@@ -787,9 +968,11 @@ export class Transaction implements TransactionLike<string> {
                 return Transaction.from(_parseLegacy(payload));
             }
 
+            // TODO
             switch(payload[0]) {
                 case 1: return Transaction.from(_parseEip2930(payload));
                 case 2: return Transaction.from(_parseEip1559(payload));
+                case 3: return Transaction.from(_parseEip4844(payload));
             }
             assert(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: "from" });
         }
@@ -807,6 +990,13 @@ export class Transaction implements TransactionLike<string> {
         if (tx.chainId != null) { result.chainId = tx.chainId; }
         if (tx.signature != null) { result.signature = Signature.from(tx.signature); }
         if (tx.accessList != null) { result.accessList = tx.accessList; }
+
+        // eip-4844
+        if (tx.maxFeePerBlobGas != null) { result.maxFeePerBlobGas = tx.maxFeePerBlobGas; }
+        if (tx.blobs != null) { result.blobs = tx.blobs; }
+        if (tx.kzgCommitments != null) { result.kzgCommitments = tx.kzgCommitments; }
+        if (tx.kzgProofs != null) { result.kzgProofs = tx.kzgProofs; }
+        if (tx.versionedHashes != null) { result.versionedHashes = tx.versionedHashes; }
 
         if (tx.hash != null) {
             assertArgument(result.isSigned(), "unsigned transaction cannot define hash", "tx", tx);

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TransactionResponse = exports.TransactionReceipt = exports.Log = exports.Block = exports.blobListify = exports.copyRequest = exports.FeeData = void 0;
+exports.TransactionResponse = exports.TransactionReceipt = exports.Log = exports.Block = exports.copyRequest = exports.FeeData = void 0;
 //import { resolveAddress } from "@ethersproject/address";
 const index_js_1 = require("../utils/index.js");
 const index_js_2 = require("../transaction/index.js");
@@ -111,7 +111,7 @@ function copyRequest(req) {
         result.accessList = (0, index_js_2.accessListify)(req.accessList);
     }
     if (req.blobs) {
-        result.blobs = blobListify(req.blobs);
+        result.blobs = (0, index_js_2.blobListify)(req.blobs);
     }
     if ("blockTag" in req) {
         result.blockTag = req.blockTag;
@@ -125,20 +125,6 @@ function copyRequest(req) {
     return result;
 }
 exports.copyRequest = copyRequest;
-function blobListify(value) {
-    if (Array.isArray(value)) {
-        (0, index_js_1.assertArgument)(value.length <= 2, "invalid blob list", `value`, value);
-        value.map((v, index) => {
-            (0, index_js_1.assertArgument)(typeof (v) === "string" && (0, index_js_1.isHexString)(v), "invalid blob", `value[${index}]`, v);
-            (0, index_js_1.assertArgument)(v.length <= 262144, "invalid blob length", `value[${index}]`, v);
-        });
-        return value;
-    }
-    (0, index_js_1.assertArgument)(value != null && typeof (value) === "string" && (0, index_js_1.isHexString)(value), "invalid blob", "value", value);
-    (0, index_js_1.assertArgument)(value != null && value.length <= 262144, "invalid blob length", `value`, value);
-    return [value];
-}
-exports.blobListify = blobListify;
 /**
  *  A **Block** represents the data associated with a full block on
  *  Ethereum.

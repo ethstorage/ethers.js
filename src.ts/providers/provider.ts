@@ -1,14 +1,14 @@
 //import { resolveAddress } from "@ethersproject/address";
 import {
     defineProperties, getBigInt, getNumber, hexlify, resolveProperties,
-    assert, assertArgument, isError, makeError, isHexString
+    assert, assertArgument, isError, makeError
 } from "../utils/index.js";
-import { accessListify } from "../transaction/index.js";
+import { accessListify, blobListify } from "../transaction/index.js";
 
 import type { AddressLike, NameResolver } from "../address/index.js";
 import type { BigNumberish, EventEmitterable } from "../utils/index.js";
 import type { Signature } from "../crypto/index.js";
-import type { AccessList, AccessListish, BlobList, BlobListish, TransactionLike } from "../transaction/index.js";
+import type { AccessList, AccessListish, BlobListish, TransactionLike } from "../transaction/index.js";
 
 import type { ContractRunner } from "./contracts.js";
 import type { Network } from "./network.js";
@@ -368,20 +368,6 @@ export function copyRequest(req: TransactionRequest): PreparedTransactionRequest
     return result;
 }
 
-export function blobListify(value: BlobListish): BlobList {
-    if (Array.isArray(value)) {
-        assertArgument(value.length <= 2, "invalid blob list", `value`, value);
-        value.map((v, index) => {
-            assertArgument(typeof (v) === "string" && isHexString(v), "invalid blob", `value[${ index }]`, v);
-            assertArgument(v.length <= 262144, "invalid blob length", `value[${ index }]`, v);
-        });
-        return value;
-    }
-
-    assertArgument(value != null && typeof (value) === "string" && isHexString(value), "invalid blob", "value", value);
-    assertArgument(value != null && value.length <= 262144, "invalid blob length", `value`, value);
-    return [value];
-}
 //////////////////////
 // Block
 

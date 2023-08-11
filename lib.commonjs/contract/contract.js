@@ -185,12 +185,10 @@ function buildWrappedMethod(contract, key) {
     const populateTransaction = async function (...args) {
         const fragment = getFragment(...args);
         // If an overrides was passed in, copy it and normalize the values
-        console.log('args', args);
         let overrides = {};
         if (fragment.inputs.length + 1 === args.length) {
             overrides = await copyOverrides(args.pop());
         }
-        console.log('overrides', overrides);
         if (fragment.inputs.length !== args.length) {
             throw new Error("internal error: fragment inputs doesn't match arguments; should not happen");
         }

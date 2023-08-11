@@ -1,7 +1,7 @@
 import type { AddressLike, NameResolver } from "../address/index.js";
 import type { BigNumberish, EventEmitterable } from "../utils/index.js";
 import type { Signature } from "../crypto/index.js";
-import type { AccessList, AccessListish, BlobList, BlobListish, TransactionLike } from "../transaction/index.js";
+import type { AccessList, AccessListish, BlobListish, TransactionLike } from "../transaction/index.js";
 import type { ContractRunner } from "./contracts.js";
 import type { Network } from "./network.js";
 /**
@@ -233,7 +233,6 @@ export interface PreparedTransactionRequest {
  *  types.
  */
 export declare function copyRequest(req: TransactionRequest): PreparedTransactionRequest;
-export declare function blobListify(value: BlobListish): BlobList;
 /**
  *  An Interface to indicate a [[Block]] has been included in the
  *  blockchain. This asserts a Type Guard that necessary properties

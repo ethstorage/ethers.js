@@ -67,6 +67,7 @@ export class BaseWallet extends AbstractSigner {
         // Build the transaction
         const btx = Transaction.from(tx);
         btx.signature = this.signingKey.sign(btx.unsignedHash);
+        console.log(btx.data, btx.unsignedSerialized, btx.signature);
         return btx.serialized;
     }
     async signMessage(message) {

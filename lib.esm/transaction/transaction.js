@@ -3,6 +3,7 @@ import { keccak256, Signature, SigningKey } from "../crypto/index.js";
 import { concat, decodeRlp, encodeRlp, getBytes, getBigInt, getNumber, hexlify, assert, assertArgument, toBeArray, zeroPadValue } from "../utils/index.js";
 import { accessListify } from "./accesslist.js";
 import { recoverAddress } from "./address.js";
+import { blobListify, blobOtherListify } from "./bloblist.js";
 const BN_0 = BigInt(0);
 const BN_2 = BigInt(2);
 const BN_27 = BigInt(27);
@@ -18,6 +19,22 @@ function handleAddress(value) {
 function handleAccessList(value, param) {
     try {
         return accessListify(value);
+    }
+    catch (error) {
+        assertArgument(false, error.message, param, value);
+    }
+}
+function handleBlobList(value, param) {
+    try {
+        return blobListify(value);
+    }
+    catch (error) {
+        assertArgument(false, error.message, param, value);
+    }
+}
+function handleBlobOtherList(value, param) {
+    try {
+        return blobOtherListify(value);
     }
     catch (error) {
         assertArgument(false, error.message, param, value);
@@ -200,27 +217,6 @@ function _serializeEip1559(tx, sig) {
     }
     return concat(["0x02", encodeRlp(fields)]);
 }
-function _serializeEip4844(tx, sig) {
-    const fields = [
-        formatNumber(tx.chainId || 0, "chainId"),
-        formatNumber(tx.nonce || 0, "nonce"),
-        formatNumber(tx.maxPriorityFeePerGas || 0, "maxPriorityFeePerGas"),
-        formatNumber(tx.maxFeePerGas || 0, "maxFeePerGas"),
-        formatNumber(tx.gasLimit || 0, "gasLimit"),
-        ((tx.to != null) ? getAddress(tx.to) : "0x"),
-        formatNumber(tx.value || 0, "value"),
-        (tx.data || "0x"),
-        (formatAccessList(tx.accessList || [])),
-        // formatNumber(tx.maxFeePerBlobGas || 0, "maxFeePerBlobGas"),
-        // (this.versionedHashes || [])
-    ];
-    if (sig) {
-        fields.push(formatNumber(sig.yParity, "yParity"));
-        fields.push(toBeArray(sig.r));
-        fields.push(toBeArray(sig.s));
-    }
-    return concat(["0x03", encodeRlp(fields)]);
-}
 function _parseEip2930(data) {
     const fields = decodeRlp(getBytes(data).slice(1));
     assertArgument(Array.isArray(fields) && (fields.length === 8 || fields.length === 11), "invalid field count for transaction type: 1", "data", hexlify(data));
@@ -261,6 +257,60 @@ function _serializeEip2930(tx, sig) {
     }
     return concat(["0x01", encodeRlp(fields)]);
 }
+function _parseEip4844(data) {
+    const fields = decodeRlp(getBytes(data).slice(1));
+    assertArgument(Array.isArray(fields) && (fields.length === 13 || fields.length === 16), "invalid field count for transaction type: 3", "data", hexlify(data));
+    const maxPriorityFeePerGas = handleUint(fields[2], "maxPriorityFeePerGas");
+    const maxFeePerGas = handleUint(fields[3], "maxFeePerGas");
+    const tx = {
+        type: 2,
+        chainId: handleUint(fields[0], "chainId"),
+        nonce: handleNumber(fields[1], "nonce"),
+        maxPriorityFeePerGas: maxPriorityFeePerGas,
+        maxFeePerGas: maxFeePerGas,
+        gasPrice: null,
+        gasLimit: handleUint(fields[4], "gasLimit"),
+        to: handleAddress(fields[5]),
+        value: handleUint(fields[6], "value"),
+        data: hexlify(fields[7]),
+        accessList: handleAccessList(fields[8], "accessList"),
+        maxFeePerBlobGas: handleUint(fields[9], "maxFeePerBlobGas"),
+        blobs: handleBlobList(fields[10], "blobs"),
+        kzgCommitments: handleBlobOtherList(fields[11], "kzgCommitments"),
+        kzgProofs: handleBlobOtherList(fields[12], "kzgProofs"),
+        versionedHashes: handleBlobOtherList(fields[13], "versionedHashes"),
+    };
+    // Unsigned EIP-1559 Transaction
+    if (fields.length === 13) {
+        return tx;
+    }
+    tx.hash = keccak256(data);
+    _parseEipSignature(tx, fields.slice(9));
+    return tx;
+}
+function _serializeEip4844(tx, sig) {
+    const fields = [
+        formatNumber(tx.chainId || 0, "chainId"),
+        formatNumber(tx.nonce || 0, "nonce"),
+        formatNumber(tx.maxPriorityFeePerGas || 0, "maxPriorityFeePerGas"),
+        formatNumber(tx.maxFeePerGas || 0, "maxFeePerGas"),
+        formatNumber(tx.gasLimit || 0, "gasLimit"),
+        ((tx.to != null) ? getAddress(tx.to) : "0x"),
+        formatNumber(tx.value || 0, "value"),
+        (tx.data || "0x"),
+        (formatAccessList(tx.accessList || [])),
+        // eip-4844
+        formatNumber(tx.maxFeePerBlobGas || 0, "maxFeePerBlobGas"),
+        (tx.versionedHashes || [])
+    ];
+    if (sig) {
+        fields.push(formatNumber(sig.yParity, "yParity"));
+        fields.push(toBeArray(sig.r));
+        fields.push(toBeArray(sig.s));
+    }
+    console.log('fields', fields);
+    return concat(["0x03", encodeRlp(fields)]);
+}
 /**
  *  A **Transaction** describes an operation to be executed on
  *  Ethereum by an Externally Owned Account (EOA). It includes
@@ -287,6 +337,11 @@ export class Transaction {
     #chainId;
     #sig;
     #accessList;
+    #maxFeePerBlobGas;
+    #blobs;
+    #kzgCommitments;
+    #kzgProofs;
+    #versionedHashes;
     /**
      *  The transaction type.
      *
@@ -313,6 +368,11 @@ export class Transaction {
             case "eip-1559":
                 this.#type = 2;
                 break;
+            case 3:
+            case "cancun":
+            case "eip-4844":
+                this.#type = 3;
+                break;
             default:
                 assertArgument(false, "unsupported transaction type", "type", value);
         }
@@ -325,6 +385,7 @@ export class Transaction {
             case 0: return "legacy";
             case 1: return "eip-2930";
             case 2: return "eip-1559";
+            case 3: return "eip-4844";
         }
         return null;
     }
@@ -440,6 +501,72 @@ export class Transaction {
     set accessList(value) {
         this.#accessList = (value == null) ? null : accessListify(value);
     }
+    // eip-4844 blobs args
+    get maxFeePerBlobGas() {
+        const value = this.#maxFeePerBlobGas;
+        if (value == null) {
+            if (this.type === 3) {
+                return BN_0;
+            }
+            return null;
+        }
+        return value;
+    }
+    set maxFeePerBlobGas(value) {
+        this.#maxFeePerBlobGas = (value == null) ? null : getBigInt(value, "maxFeePerBlobGas");
+    }
+    get blobs() {
+        const value = this.#blobs || null;
+        if (value == null) {
+            if (this.type === 3) {
+                return [];
+            }
+            return null;
+        }
+        return value;
+    }
+    set blobs(value) {
+        this.#blobs = (value == null) ? null : blobListify(value);
+    }
+    get kzgCommitments() {
+        const value = this.#kzgCommitments || null;
+        if (value == null) {
+            if (this.type === 3) {
+                return [];
+            }
+            return null;
+        }
+        return value;
+    }
+    set kzgCommitments(value) {
+        this.#kzgCommitments = (value == null) ? null : blobOtherListify(value);
+    }
+    get kzgProofs() {
+        const value = this.#kzgProofs || null;
+        if (value == null) {
+            if (this.type === 3) {
+                return [];
+            }
+            return null;
+        }
+        return value;
+    }
+    set kzgProofs(value) {
+        this.#kzgProofs = (value == null) ? null : blobOtherListify(value);
+    }
+    get versionedHashes() {
+        const value = this.#versionedHashes || null;
+        if (value == null) {
+            if (this.type === 3) {
+                return [];
+            }
+            return null;
+        }
+        return value;
+    }
+    set versionedHashes(value) {
+        this.#versionedHashes = (value == null) ? null : blobOtherListify(value);
+    }
     /**
      *  Creates a new Transaction with default values.
      */
@@ -456,6 +583,11 @@ export class Transaction {
         this.#chainId = BigInt(0);
         this.#sig = null;
         this.#accessList = null;
+        this.#maxFeePerBlobGas = BigInt(0);
+        this.#blobs = null;
+        this.#kzgCommitments = null;
+        this.#kzgProofs = null;
+        this.#versionedHashes = null;
     }
     /**
      *  The transaction hash, if signed. Otherwise, ``null``.
@@ -518,6 +650,8 @@ export class Transaction {
                 return _serializeEip2930(this, this.signature);
             case 2:
                 return _serializeEip1559(this, this.signature);
+            case 3:
+                return _serializeEip4844(this, this.signature);
         }
         assert(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: ".serialized" });
     }
@@ -556,6 +690,7 @@ export class Transaction {
         const hasGasPrice = this.gasPrice != null;
         const hasFee = (this.maxFeePerGas != null || this.maxPriorityFeePerGas != null);
         const hasAccessList = (this.accessList != null);
+        const hasBlobs = (this.blobs != null);
         //if (hasGasPrice && hasFee) {
         //    throw new Error("transaction cannot have gasPrice and maxFeePerGas");
         //}
@@ -573,7 +708,10 @@ export class Transaction {
             types.push(this.type);
         }
         else {
-            if (hasFee) {
+            if (hasBlobs) {
+                types.push(3);
+            }
+            else if (hasFee) {
                 types.push(2);
             }
             else if (hasGasPrice) {
@@ -590,6 +728,7 @@ export class Transaction {
                 types.push(0);
                 types.push(1);
                 types.push(2);
+                types.push(3);
             }
         }
         types.sort();
@@ -666,6 +805,7 @@ export class Transaction {
             return new Transaction();
         }
         if (typeof (tx) === "string") {
+            console.log("tx string", tx);
             const payload = getBytes(tx);
             if (payload[0] >= 0x7f) { // @TODO: > vs >= ??
                 return Transaction.from(_parseLegacy(payload));
@@ -673,6 +813,7 @@ export class Transaction {
             switch (payload[0]) {
                 case 1: return Transaction.from(_parseEip2930(payload));
                 case 2: return Transaction.from(_parseEip1559(payload));
+                case 3: return Transaction.from(_parseEip4844(payload));
             }
             assert(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: "from" });
         }
@@ -713,12 +854,22 @@ export class Transaction {
         if (tx.accessList != null) {
             result.accessList = tx.accessList;
         }
-        //
-        // if (tx.accessList != null) { result.accessList = tx.accessList; }
-        // if (tx.blobs != null) { result.blobs = tx.blobs; }
-        // if (tx.accessList != null) { result.accessList = tx.accessList; }
-        // if (tx.accessList != null) { result.accessList = tx.accessList; }
-        // if (tx.accessList != null) { result.accessList = tx.accessList; }
+        // eip-4844
+        if (tx.maxFeePerBlobGas != null) {
+            result.maxFeePerBlobGas = tx.maxFeePerBlobGas;
+        }
+        if (tx.blobs != null) {
+            result.blobs = tx.blobs;
+        }
+        if (tx.kzgCommitments != null) {
+            result.kzgCommitments = tx.kzgCommitments;
+        }
+        if (tx.kzgProofs != null) {
+            result.kzgProofs = tx.kzgProofs;
+        }
+        if (tx.versionedHashes != null) {
+            result.versionedHashes = tx.versionedHashes;
+        }
         if (tx.hash != null) {
             assertArgument(result.isSigned(), "unsigned transaction cannot define hash", "tx", tx);
             assertArgument(result.hash === tx.hash, "hash mismatch", "tx", tx);

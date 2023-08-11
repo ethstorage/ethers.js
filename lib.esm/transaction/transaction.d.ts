@@ -1,7 +1,7 @@
 import { Signature } from "../crypto/index.js";
 import type { BigNumberish, BytesLike } from "../utils/index.js";
 import type { SignatureLike } from "../crypto/index.js";
-import type { AccessList, AccessListish } from "./index.js";
+import type { AccessList, AccessListish, BlobList, BlobListish, BlobOtherList, BlobOtherListish } from "./index.js";
 /**
  *  A **TransactionLike** is an object which is appropriate as a loose
  *  input for many operations which will populate missing properties of
@@ -64,6 +64,14 @@ export interface TransactionLike<A = string> {
      *  The access list for berlin and london transactions.
      */
     accessList?: null | AccessListish;
+    /**
+     * Eip-4844 blobs and proofs
+     */
+    maxFeePerBlobGas?: null | BigNumberish;
+    blobs?: null | BlobListish;
+    kzgCommitments?: null | string[] | Array<string>;
+    kzgProofs?: null | string[] | Array<string>;
+    versionedHashes?: null | string[] | Array<string>;
 }
 /**
  *  A **Transaction** describes an operation to be executed on
@@ -157,6 +165,16 @@ export declare class Transaction implements TransactionLike<string> {
      */
     get accessList(): null | AccessList;
     set accessList(value: null | AccessListish);
+    get maxFeePerBlobGas(): null | bigint;
+    set maxFeePerBlobGas(value: null | BigNumberish);
+    get blobs(): null | BlobList;
+    set blobs(value: null | BlobListish);
+    get kzgCommitments(): null | BlobOtherList;
+    set kzgCommitments(value: null | BlobOtherListish);
+    get kzgProofs(): null | BlobOtherList;
+    set kzgProofs(value: null | BlobOtherListish);
+    get versionedHashes(): null | BlobOtherList;
+    set versionedHashes(value: null | BlobOtherListish);
     /**
      *  Creates a new Transaction with default values.
      */

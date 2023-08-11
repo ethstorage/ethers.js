@@ -25,8 +25,11 @@ export type AccessListish = AccessList |
 
 export type BlobList = Array<string>;
 export type BlobListish = BlobList | string[] | string;
+export type BlobOtherList = Array<string>;
+export type BlobOtherListish = BlobOtherList | string[];
 
 export { accessListify } from "./accesslist.js";
+export { blobListify, blobOtherListify } from "./bloblist.js";
 export { computeAddress, recoverAddress } from "./address.js";
 export { Transaction } from "./transaction.js";
 
