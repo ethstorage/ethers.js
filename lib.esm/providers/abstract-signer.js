@@ -230,7 +230,6 @@ export class AbstractSigner {
         const pop = await this.populateTransaction(tx);
         delete pop.from;
         const txObj = Transaction.from(pop);
-        console.log('sign', await this.signTransaction(txObj));
         return await provider.broadcastTransaction(await this.signTransaction(txObj));
     }
 }

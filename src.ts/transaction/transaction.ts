@@ -395,37 +395,64 @@ function _serializeEip2930(tx: TransactionLike, sig?: Signature): string {
 function _parseEip4844(data: Uint8Array): TransactionLike {
     const fields: any = decodeRlp(getBytes(data).slice(1));
 
-    assertArgument(Array.isArray(fields) && (fields.length === 13 || fields.length === 16),
+    assertArgument(Array.isArray(fields) &&
+        ((fields.length === 4 && Array.isArray(fields[0]) && (fields[0].length === 11 || fields[0].length === 14)) ||
+            (fields.length === 11 || fields.length === 14)),
         "invalid field count for transaction type: 3", "data", hexlify(data));
 
-    const maxPriorityFeePerGas = handleUint(fields[2], "maxPriorityFeePerGas");
-    const maxFeePerGas = handleUint(fields[3], "maxFeePerGas");
-    const tx: TransactionLike = {
-        type:                  2,
-        chainId:               handleUint(fields[0], "chainId"),
-        nonce:                 handleNumber(fields[1], "nonce"),
-        maxPriorityFeePerGas:  maxPriorityFeePerGas,
-        maxFeePerGas:          maxFeePerGas,
-        gasPrice:              null,
-        gasLimit:              handleUint(fields[4], "gasLimit"),
-        to:                    handleAddress(fields[5]),
-        value:                 handleUint(fields[6], "value"),
-        data:                  hexlify(fields[7]),
-        accessList:            handleAccessList(fields[8], "accessList"),
+    let tx: TransactionLike;
+    if (fields.length === 4) {
+        tx = {
+            type: 3,
+            chainId: handleUint(fields[0][0], "chainId"),
+            nonce: handleNumber(fields[0][1], "nonce"),
+            maxPriorityFeePerGas: handleUint(fields[0][2], "maxPriorityFeePerGas"),
+            maxFeePerGas: handleUint(fields[0][3], "maxFeePerGas"),
+            gasPrice: null,
+            gasLimit: handleUint(fields[0][4], "gasLimit"),
+            to: handleAddress(fields[0][5]),
+            value: handleUint(fields[0][6], "value"),
+            data: hexlify(fields[0][7]),
+            accessList: handleAccessList(fields[0][8], "accessList"),
 
-        maxFeePerBlobGas:      handleUint(fields[9], "maxFeePerBlobGas"),
-        blobs:                 handleBlobList(fields[10], "blobs"),
-        kzgCommitments:        handleBlobOtherList(fields[11], "kzgCommitments"),
-        kzgProofs:             handleBlobOtherList(fields[12], "kzgProofs"),
-        versionedHashes:       handleBlobOtherList(fields[13], "versionedHashes"),
-    };
+            maxFeePerBlobGas: handleUint(fields[0][9], "maxFeePerBlobGas"),
+            versionedHashes: handleBlobOtherList(fields[0][10], "versionedHashes"),
 
-    // Unsigned EIP-1559 Transaction
-    if (fields.length === 13) { return tx; }
+            blobs: handleBlobList(fields[1], "blobs"),
+            kzgCommitments: handleBlobOtherList(fields[2], "kzgCommitments"),
+            kzgProofs: handleBlobOtherList(fields[3], "kzgProofs"),
+        };
+    } else {
+        tx = {
+            type: 3,
+            chainId: handleUint(fields[0], "chainId"),
+            nonce: handleNumber(fields[1], "nonce"),
+            maxPriorityFeePerGas: handleUint(fields[2], "maxPriorityFeePerGas"),
+            maxFeePerGas: handleUint(fields[3], "maxFeePerGas"),
+            gasPrice: null,
+            gasLimit: handleUint(fields[4], "gasLimit"),
+            to: handleAddress(fields[5]),
+            value: handleUint(fields[6], "value"),
+            data: hexlify(fields[7]),
+            accessList: handleAccessList(fields[8], "accessList"),
 
-    tx.hash = keccak256(data);
+            maxFeePerBlobGas: handleUint(fields[9], "maxFeePerBlobGas"),
+            versionedHashes: handleBlobOtherList(fields[10], "versionedHashes"),
+        };
+    }
 
-    _parseEipSignature(tx, fields.slice(9));
+    // Unsigned EIP-4844 Transaction
+    if (fields.length === 11 || (fields.length === 4 && fields[0].length === 11)) {
+        return tx;
+    }
+
+    if (fields.length === 4) {
+        tx.hash = keccak256(concat(["0x03", encodeRlp(fields[0])]));
+        _parseEipSignature(tx, fields[0].slice(11));
+    } else {
+        tx.hash = keccak256(data);
+        _parseEipSignature(tx, fields.slice(11));
+    }
 
     return tx;
 }
@@ -464,7 +491,7 @@ function _serializeAllEip4844(tx: TransactionLike, sig?: Signature): string {
     const blobs = (tx.blobs || []);
     const commitments = (tx.kzgCommitments || []);
     const proofs = (tx.kzgProofs || []);
-    return concat([ "0x03", encodeRlp(fields), encodeRlp(blobs), encodeRlp(commitments), encodeRlp(proofs)]);
+    return concat([ "0x03", encodeRlp([fields, blobs, commitments, proofs])]);
 }
 
 /**
@@ -997,7 +1024,6 @@ export class Transaction implements TransactionLike<string> {
                 return Transaction.from(_parseLegacy(payload));
             }
 
-            // TODO
             switch(payload[0]) {
                 case 1: return Transaction.from(_parseEip2930(payload));
                 case 2: return Transaction.from(_parseEip1559(payload));
