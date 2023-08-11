@@ -430,14 +430,14 @@ function _parseEip4844(data: Uint8Array): TransactionLike {
     return tx;
 }
 
-function _serializeEip4844(tx: TransactionLike, sig?: Signature): string {
+function _serializeEip4844Fields(tx: TransactionLike, sig?: Signature): Array<any> {
     const fields: Array<any> = [
         formatNumber(tx.chainId || 0, "chainId"),
         formatNumber(tx.nonce || 0, "nonce"),
         formatNumber(tx.maxPriorityFeePerGas || 0, "maxPriorityFeePerGas"),
         formatNumber(tx.maxFeePerGas || 0, "maxFeePerGas"),
         formatNumber(tx.gasLimit || 0, "gasLimit"),
-        ((tx.to != null) ? getAddress(tx.to): "0x"),
+        ((tx.to != null) ? getAddress(tx.to) : "0x"),
         formatNumber(tx.value || 0, "value"),
         (tx.data || "0x"),
         (formatAccessList(tx.accessList || [])),
@@ -445,16 +445,28 @@ function _serializeEip4844(tx: TransactionLike, sig?: Signature): string {
         formatNumber(tx.maxFeePerBlobGas || 0, "maxFeePerBlobGas"),
         (tx.versionedHashes || [])
     ];
-
     if (sig) {
         fields.push(formatNumber(sig.yParity, "yParity"));
         fields.push(toBeArray(sig.r));
         fields.push(toBeArray(sig.s));
     }
-
-    console.log('fields', fields);
-    return concat([ "0x03", encodeRlp(fields)]);
+    return fields;
 }
+
+function _serializeEip4844(tx: TransactionLike, sig?: Signature): string {
+    const fields = _serializeEip4844Fields(tx, sig);
+    return concat(["0x03", encodeRlp(fields)]);
+}
+
+function _serializeAllEip4844(tx: TransactionLike, sig?: Signature): string {
+    const fields = _serializeEip4844Fields(tx, sig);
+
+    const blobs = (tx.blobs || []);
+    const commitments = (tx.kzgCommitments || []);
+    const proofs = (tx.kzgProofs || []);
+    return concat([ "0x03", encodeRlp(fields), encodeRlp(blobs), encodeRlp(commitments), encodeRlp(proofs)]);
+}
+
 /**
  *  A **Transaction** describes an operation to be executed on
  *  Ethereum by an Externally Owned Account (EOA). It includes
@@ -739,7 +751,7 @@ export class Transaction implements TransactionLike<string> {
      */
     get hash(): null | string {
         if (this.signature == null) { return null; }
-        return keccak256(this.serialized);
+        return keccak256(this.serializedNormal);
     }
 
     /**
@@ -786,6 +798,23 @@ export class Transaction implements TransactionLike<string> {
      *  use [[unsignedSerialized]].
      */
     get serialized(): string {
+        assert(this.signature != null, "cannot serialize unsigned transaction; maybe you meant .unsignedSerialized", "UNSUPPORTED_OPERATION", { operation: ".serialized"});
+
+        switch (this.inferType()) {
+            case 0:
+                return _serializeLegacy(this, this.signature);
+            case 1:
+                return _serializeEip2930(this, this.signature);
+            case 2:
+                return _serializeEip1559(this, this.signature);
+            case 3:
+                return _serializeAllEip4844(this, this.signature);
+        }
+
+        assert(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: ".serialized" });
+    }
+
+    get serializedNormal(): string {
         assert(this.signature != null, "cannot serialize unsigned transaction; maybe you meant .unsignedSerialized", "UNSUPPORTED_OPERATION", { operation: ".serialized"});
 
         switch (this.inferType()) {

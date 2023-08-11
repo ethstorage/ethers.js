@@ -291,7 +291,7 @@ function _parseEip4844(data) {
     _parseEipSignature(tx, fields.slice(9));
     return tx;
 }
-function _serializeEip4844(tx, sig) {
+function _serializeEip4844Fields(tx, sig) {
     const fields = [
         formatNumber(tx.chainId || 0, "chainId"),
         formatNumber(tx.nonce || 0, "nonce"),
@@ -311,8 +311,18 @@ function _serializeEip4844(tx, sig) {
         fields.push((0, index_js_3.toBeArray)(sig.r));
         fields.push((0, index_js_3.toBeArray)(sig.s));
     }
-    console.log('fields', fields);
+    return fields;
+}
+function _serializeEip4844(tx, sig) {
+    const fields = _serializeEip4844Fields(tx, sig);
     return (0, index_js_3.concat)(["0x03", (0, index_js_3.encodeRlp)(fields)]);
+}
+function _serializeAllEip4844(tx, sig) {
+    const fields = _serializeEip4844Fields(tx, sig);
+    const blobs = (tx.blobs || []);
+    const commitments = (tx.kzgCommitments || []);
+    const proofs = (tx.kzgProofs || []);
+    return (0, index_js_3.concat)(["0x03", (0, index_js_3.encodeRlp)(fields), (0, index_js_3.encodeRlp)(blobs), (0, index_js_3.encodeRlp)(commitments), (0, index_js_3.encodeRlp)(proofs)]);
 }
 /**
  *  A **Transaction** describes an operation to be executed on
@@ -599,7 +609,7 @@ class Transaction {
         if (this.signature == null) {
             return null;
         }
-        return (0, index_js_2.keccak256)(this.serialized);
+        return (0, index_js_2.keccak256)(this.serializedNormal);
     }
     /**
      *  The pre-image hash of this transaction.
@@ -645,6 +655,20 @@ class Transaction {
      *  use [[unsignedSerialized]].
      */
     get serialized() {
+        (0, index_js_3.assert)(this.signature != null, "cannot serialize unsigned transaction; maybe you meant .unsignedSerialized", "UNSUPPORTED_OPERATION", { operation: ".serialized" });
+        switch (this.inferType()) {
+            case 0:
+                return _serializeLegacy(this, this.signature);
+            case 1:
+                return _serializeEip2930(this, this.signature);
+            case 2:
+                return _serializeEip1559(this, this.signature);
+            case 3:
+                return _serializeAllEip4844(this, this.signature);
+        }
+        (0, index_js_3.assert)(false, "unsupported transaction type", "UNSUPPORTED_OPERATION", { operation: ".serialized" });
+    }
+    get serializedNormal() {
         (0, index_js_3.assert)(this.signature != null, "cannot serialize unsigned transaction; maybe you meant .unsignedSerialized", "UNSUPPORTED_OPERATION", { operation: ".serialized" });
         switch (this.inferType()) {
             case 0:
@@ -808,11 +832,11 @@ class Transaction {
             return new Transaction();
         }
         if (typeof (tx) === "string") {
-            console.log("tx string", tx);
             const payload = (0, index_js_3.getBytes)(tx);
             if (payload[0] >= 0x7f) { // @TODO: > vs >= ??
                 return Transaction.from(_parseLegacy(payload));
             }
+            // TODO
             switch (payload[0]) {
                 case 1: return Transaction.from(_parseEip2930(payload));
                 case 2: return Transaction.from(_parseEip1559(payload));

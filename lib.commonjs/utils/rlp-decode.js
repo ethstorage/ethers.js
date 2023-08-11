@@ -41,7 +41,6 @@ function _decode(data, offset) {
             buffer: data, length: data.length, offset
         });
     };
-    console.log('offset', offset, data[offset]);
     // Array with extra length prefix
     if (data[offset] >= 0xf8) {
         const lengthLength = data[offset] - 0xf7;

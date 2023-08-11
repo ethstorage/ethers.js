@@ -1,0 +1,1 @@
+{"version":3,"file":"bloblist.d.ts","sourceRoot":"","sources":["../../src.ts/transaction/bloblist.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,QAAQ,EAAE,WAAW,EAAE,aAAa,EAAE,gBAAgB,EAAE,MAAM,YAAY,CAAC;AAGpF;;GAEG;AACH,wBAAgB,WAAW,CAAC,KAAK,EAAE,WAAW,GAAG,QAAQ,CAaxD;AAED,wBAAgB,gBAAgB,CAAC,KAAK,EAAE,gBAAgB,GAAG,aAAa,CASvE"}

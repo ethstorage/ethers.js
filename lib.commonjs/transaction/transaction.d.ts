@@ -217,6 +217,7 @@ export declare class Transaction implements TransactionLike<string> {
      *  use [[unsignedSerialized]].
      */
     get serialized(): string;
+    get serializedNormal(): string;
     /**
      *  The transaction pre-image.
      *
