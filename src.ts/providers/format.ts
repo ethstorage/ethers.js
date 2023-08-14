@@ -3,7 +3,7 @@
  */
 import { getAddress, getCreateAddress } from "../address/index.js";
 import { Signature } from "../crypto/index.js"
-import { accessListify } from "../transaction/index.js";
+import { accessListify, blobListify, blobOtherListify } from "../transaction/index.js";
 import {
     getBigInt, getNumber, hexlify, isHexString, zeroPadValue,
     assert, assertArgument
@@ -196,6 +196,13 @@ export function formatTransactionResponse(value: any): TransactionResponseParams
         },
         accessList: allowNull(accessListify, null),
 
+        // blobs
+        maxFeePerBlobGas: allowNull(getBigInt),
+        versionedHashes: allowNull(blobOtherListify, null),
+        blobs: allowNull(blobListify, null),
+        kzgCommitments: allowNull(blobOtherListify, null),
+        kzgProofs: allowNull(blobOtherListify, null),
+
         blockHash: allowNull(formatHash, null),
         blockNumber: allowNull(getNumber, null),
         transactionIndex: allowNull(getNumber, null),
@@ -233,6 +240,15 @@ export function formatTransactionResponse(value: any): TransactionResponseParams
     // Add an access list to supported transaction types
     if ((value.type === 1 || value.type === 2) && value.accessList == null) {
         result.accessList = [ ];
+    }
+
+    // add eip-4844 blobs
+    if (value.type === 3 && value.blobs == null) {
+        result.maxFeePerBlobGas = BN_0;
+        result.blobs = [];
+        result.kzgCommitments = [];
+        result.kzgProofs = [];
+        result.versionedHashes = [];
     }
 
     // Compute the signature

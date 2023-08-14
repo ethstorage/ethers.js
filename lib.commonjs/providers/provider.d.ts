@@ -1,7 +1,7 @@
 import type { AddressLike, NameResolver } from "../address/index.js";
 import type { BigNumberish, EventEmitterable } from "../utils/index.js";
 import type { Signature } from "../crypto/index.js";
-import type { AccessList, AccessListish, BlobListish, TransactionLike } from "../transaction/index.js";
+import type { AccessList, AccessListish, BlobList, BlobListish, BlobOtherList, TransactionLike } from "../transaction/index.js";
 import type { ContractRunner } from "./contracts.js";
 import type { Network } from "./network.js";
 /**
@@ -757,6 +757,11 @@ export declare class TransactionResponse implements TransactionLike<string>, Tra
      *  support it, otherwise ``null``.
      */
     readonly accessList: null | AccessList;
+    readonly maxFeePerBlobGas: null | bigint;
+    readonly blobs: null | BlobList;
+    readonly kzgCommitments: null | BlobOtherList;
+    readonly kzgProofs: null | BlobOtherList;
+    readonly versionedHashes: null | BlobOtherList;
     /**
      *  @_ignore:
      */

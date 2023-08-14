@@ -8,7 +8,11 @@ import { accessListify, blobListify } from "../transaction/index.js";
 import type { AddressLike, NameResolver } from "../address/index.js";
 import type { BigNumberish, EventEmitterable } from "../utils/index.js";
 import type { Signature } from "../crypto/index.js";
-import type { AccessList, AccessListish, BlobListish, TransactionLike } from "../transaction/index.js";
+import type {
+    AccessList, AccessListish,
+    BlobList, BlobListish,
+    BlobOtherList, TransactionLike
+} from "../transaction/index.js";
 
 import type { ContractRunner } from "./contracts.js";
 import type { Network } from "./network.js";
@@ -1266,6 +1270,12 @@ export class TransactionResponse implements TransactionLike<string>, Transaction
      */
     readonly accessList!: null | AccessList;
 
+    readonly maxFeePerBlobGas!: null | bigint;
+    readonly blobs!: null | BlobList;
+    readonly kzgCommitments!: null | BlobOtherList;
+    readonly kzgProofs!: null | BlobOtherList;
+    readonly versionedHashes!: null | BlobOtherList;
+
     #startBlock: number;
 
     /**
@@ -1299,6 +1309,12 @@ export class TransactionResponse implements TransactionLike<string>, Transaction
 
         this.accessList = (tx.accessList != null) ? tx.accessList: null;
 
+        this.maxFeePerBlobGas = (tx.maxFeePerBlobGas != null) ? tx.maxFeePerBlobGas : null;
+        this.versionedHashes = (tx.versionedHashes != null) ? tx.versionedHashes : null;
+        this.blobs = (tx.blobs != null) ? tx.blobs : null;
+        this.kzgCommitments = (tx.kzgCommitments != null) ? tx.kzgCommitments : null;
+        this.kzgProofs = (tx.kzgProofs != null) ? tx.kzgProofs : null;
+
         this.#startBlock = -1;
     }
 
@@ -1308,7 +1324,8 @@ export class TransactionResponse implements TransactionLike<string>, Transaction
     toJSON(): any {
         const {
             blockNumber, blockHash, index, hash, type, to, from, nonce,
-            data, signature, accessList
+            data, signature, accessList,
+            versionedHashes, blobs, kzgCommitments, kzgProofs
         } = this;
 
         return {
@@ -1323,6 +1340,8 @@ export class TransactionResponse implements TransactionLike<string>, Transaction
             maxPriorityFeePerGas: toJson(this.maxPriorityFeePerGas),
             nonce, signature, to, index, type,
             value: toJson(this.value),
+            maxFeePerBlobGas: toJson(this.maxFeePerBlobGas),
+            versionedHashes, blobs, kzgCommitments, kzgProofs
         };
     }
 

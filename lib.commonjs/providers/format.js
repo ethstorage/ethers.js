@@ -186,6 +186,12 @@ function formatTransactionResponse(value) {
             return (0, index_js_4.getNumber)(value);
         },
         accessList: allowNull(index_js_3.accessListify, null),
+        // blobs
+        maxFeePerBlobGas: allowNull(index_js_4.getBigInt),
+        versionedHashes: allowNull(index_js_3.blobOtherListify, null),
+        blobs: allowNull(index_js_3.blobListify, null),
+        kzgCommitments: allowNull(index_js_3.blobOtherListify, null),
+        kzgProofs: allowNull(index_js_3.blobOtherListify, null),
         blockHash: allowNull(formatHash, null),
         blockNumber: allowNull(index_js_4.getNumber, null),
         transactionIndex: allowNull(index_js_4.getNumber, null),
@@ -214,6 +220,14 @@ function formatTransactionResponse(value) {
     // Add an access list to supported transaction types
     if ((value.type === 1 || value.type === 2) && value.accessList == null) {
         result.accessList = [];
+    }
+    // add eip-4844 blobs
+    if (value.type === 3 && value.blobs == null) {
+        result.maxFeePerBlobGas = BN_0;
+        result.blobs = [];
+        result.kzgCommitments = [];
+        result.kzgProofs = [];
+        result.versionedHashes = [];
     }
     // Compute the signature
     if (value.signature) {

@@ -843,6 +843,11 @@ export class TransactionResponse {
      *  support it, otherwise ``null``.
      */
     accessList;
+    maxFeePerBlobGas;
+    blobs;
+    kzgCommitments;
+    kzgProofs;
+    versionedHashes;
     #startBlock;
     /**
      *  @_ignore:
@@ -866,13 +871,18 @@ export class TransactionResponse {
         this.chainId = tx.chainId;
         this.signature = tx.signature;
         this.accessList = (tx.accessList != null) ? tx.accessList : null;
+        this.maxFeePerBlobGas = (tx.maxFeePerBlobGas != null) ? tx.maxFeePerBlobGas : null;
+        this.versionedHashes = (tx.versionedHashes != null) ? tx.versionedHashes : null;
+        this.blobs = (tx.blobs != null) ? tx.blobs : null;
+        this.kzgCommitments = (tx.kzgCommitments != null) ? tx.kzgCommitments : null;
+        this.kzgProofs = (tx.kzgProofs != null) ? tx.kzgProofs : null;
         this.#startBlock = -1;
     }
     /**
      *  Returns a JSON-compatible representation of this transaction.
      */
     toJSON() {
-        const { blockNumber, blockHash, index, hash, type, to, from, nonce, data, signature, accessList } = this;
+        const { blockNumber, blockHash, index, hash, type, to, from, nonce, data, signature, accessList, versionedHashes, blobs, kzgCommitments, kzgProofs } = this;
         return {
             _type: "TransactionReceipt",
             accessList, blockNumber, blockHash,
@@ -885,6 +895,8 @@ export class TransactionResponse {
             maxPriorityFeePerGas: toJson(this.maxPriorityFeePerGas),
             nonce, signature, to, index, type,
             value: toJson(this.value),
+            maxFeePerBlobGas: toJson(this.maxFeePerBlobGas),
+            versionedHashes, blobs, kzgCommitments, kzgProofs
         };
     }
     /**

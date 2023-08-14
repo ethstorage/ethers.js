@@ -69,9 +69,9 @@ export interface TransactionLike<A = string> {
      */
     maxFeePerBlobGas?: null | BigNumberish;
     blobs?: null | BlobListish;
-    kzgCommitments?: null | string[] | Array<string>;
-    kzgProofs?: null | string[] | Array<string>;
-    versionedHashes?: null | string[] | Array<string>;
+    kzgCommitments?: null | BlobOtherListish;
+    kzgProofs?: null | BlobOtherListish;
+    versionedHashes?: null | BlobOtherListish;
 }
 /**
  *  A **Transaction** describes an operation to be executed on

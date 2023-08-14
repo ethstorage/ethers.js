@@ -5,7 +5,7 @@
  */
 
 import type { Signature } from "../crypto/index.js";
-import type { AccessList } from "../transaction/index.js";
+import type { AccessList, BlobList, BlobOtherList } from "../transaction/index.js";
 
 
 //////////////////////
@@ -351,6 +351,13 @@ export interface TransactionResponseParams {
      *  The transaction access list.
      */
     accessList: null | AccessList;
+
+    // eip-4844 blobs
+    maxFeePerBlobGas: null | bigint;
+    blobs: null | BlobList;
+    kzgCommitments: null | BlobOtherList;
+    kzgProofs: null | BlobOtherList;
+    versionedHashes: null | BlobOtherList;
 };
 
 

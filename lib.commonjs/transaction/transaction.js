@@ -846,7 +846,12 @@ class Transaction {
             value: s(this.value),
             chainId: s(this.chainId),
             sig: this.signature ? this.signature.toJSON() : null,
-            accessList: this.accessList
+            accessList: this.accessList,
+            maxFeePerBlobGas: s(this.maxFeePerBlobGas),
+            versionedHashes: this.#versionedHashes,
+            blobs: this.#blobs,
+            kzgCommitments: this.#kzgCommitments,
+            kzgProofs: this.#kzgProofs
         };
     }
     /**

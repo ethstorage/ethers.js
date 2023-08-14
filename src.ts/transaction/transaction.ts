@@ -108,9 +108,9 @@ export interface TransactionLike<A = string> {
      */
     maxFeePerBlobGas?: null | BigNumberish;
     blobs?: null | BlobListish;
-    kzgCommitments?: null | string[] | Array<string>;
-    kzgProofs?: null | string[] | Array<string>;
-    versionedHashes?: null | string[] | Array<string>;
+    kzgCommitments?: null | BlobOtherListish;
+    kzgProofs?: null | BlobOtherListish;
+    versionedHashes?: null | BlobOtherListish;
 }
 
 function handleAddress(value: string): null | string {
@@ -1006,7 +1006,12 @@ export class Transaction implements TransactionLike<string> {
             value: s(this.value),
             chainId: s(this.chainId),
             sig: this.signature ? this.signature.toJSON(): null,
-            accessList: this.accessList
+            accessList: this.accessList,
+            maxFeePerBlobGas: s(this.maxFeePerBlobGas),
+            versionedHashes: this.#versionedHashes,
+            blobs: this.#blobs,
+            kzgCommitments: this.#kzgCommitments,
+            kzgProofs: this.#kzgProofs
         };
     }
 

@@ -81,7 +81,6 @@ export abstract class AbstractSigner<P extends null | Provider = null | Provider
     constructor(provider?: P) {
         defineProperties<AbstractSigner>(this, { provider: (provider || null) });
         const SETUP_FILE_PATH = resolve(__dirname, 'lib', 'devnet7.txt');
-        console.log(SETUP_FILE_PATH, resolve(__dirname));
         loadTrustedSetup(SETUP_FILE_PATH);
     }
 

@@ -4,7 +4,7 @@
  *  @_section: api/providers/formatting:Formatting  [provider-formatting]
  */
 import type { Signature } from "../crypto/index.js";
-import type { AccessList } from "../transaction/index.js";
+import type { AccessList, BlobList, BlobOtherList } from "../transaction/index.js";
 /**
  *  a **BlockParams** encodes the minimal required properties for a
  *  formatted block.
@@ -264,5 +264,10 @@ export interface TransactionResponseParams {
      *  The transaction access list.
      */
     accessList: null | AccessList;
+    maxFeePerBlobGas: null | bigint;
+    blobs: null | BlobList;
+    kzgCommitments: null | BlobOtherList;
+    kzgProofs: null | BlobOtherList;
+    versionedHashes: null | BlobOtherList;
 }
 //# sourceMappingURL=formatting.d.ts.map

@@ -65,7 +65,6 @@ class AbstractSigner {
     constructor(provider) {
         (0, index_js_3.defineProperties)(this, { provider: (provider || null) });
         const SETUP_FILE_PATH = (0, path_1.resolve)(__dirname, 'lib', 'devnet7.txt');
-        console.log(SETUP_FILE_PATH, (0, path_1.resolve)(__dirname));
         (0, c_kzg_1.loadTrustedSetup)(SETUP_FILE_PATH);
     }
     async getNonce(blockTag) {
