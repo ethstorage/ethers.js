@@ -243,7 +243,7 @@ export function formatTransactionResponse(value: any): TransactionResponseParams
     }
 
     // add eip-4844 blobs
-    if (value.type === 3 && value.blobs == null) {
+    if (result.type === 3 && result.blobs == null) {
         result.maxFeePerBlobGas = BN_0;
         result.blobs = [];
         result.kzgCommitments = [];
